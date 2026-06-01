@@ -21,6 +21,10 @@ interface PoolFilters {
   search: string;
   categories: string[];
   statuses: PoolStatus[];
+  minTarget?: number | null;
+  maxTarget?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
 }
 
 interface PoolsState {
@@ -42,6 +46,10 @@ const DEFAULT_FILTERS: PoolFilters = {
   search: '',
   categories: [],
   statuses: [],
+  minTarget: null,
+  maxTarget: null,
+  dateFrom: null,
+  dateTo: null,
 };
 
 const DEFAULT_SORT: SortOption = 'newest';
@@ -124,6 +132,12 @@ export const usePoolsStore = create<PoolsState>()(
       setSearch: (search) =>
         set((s) => ({ filters: { ...s.filters, search } })),
 
+          setPriceRange: (min?: number | null, max?: number | null) =>
+            set((s) => ({ filters: { ...s.filters, minTarget: min ?? null, maxTarget: max ?? null } })),
+
+          setDateRange: (from?: string | null, to?: string | null) =>
+            set((s) => ({ filters: { ...s.filters, dateFrom: from ?? null, dateTo: to ?? null } })),
+
       toggleCategory: (category) =>
         set((s) => ({
           filters: {
@@ -164,7 +178,22 @@ export const usePoolsStore = create<PoolsState>()(
           const matchStatus =
             filters.statuses.length === 0 ||
             filters.statuses.includes(pool.status);
-          return matchSearch && matchCategory && matchStatus;
+          const matchMinTarget =
+            filters.minTarget == null || pool.target >= (filters.minTarget ?? 0);
+          const matchMaxTarget =
+            filters.maxTarget == null || pool.target <= (filters.maxTarget ?? Infinity);
+          const createdTs = new Date(pool.createdAt ?? '1970-01-01').toISOString();
+          const matchDateFrom = !filters.dateFrom || createdTs >= (filters.dateFrom + 'T00:00:00Z');
+          const matchDateTo = !filters.dateTo || createdTs <= (filters.dateTo + 'T23:59:59Z');
+          return (
+            matchSearch &&
+            matchCategory &&
+            matchStatus &&
+            matchMinTarget &&
+            matchMaxTarget &&
+            matchDateFrom &&
+            matchDateTo
+          );
         });
 
         return [...filtered].sort((a, b) => {

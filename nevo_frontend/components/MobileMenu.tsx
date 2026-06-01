@@ -8,9 +8,12 @@ import ThemeToggle from '@/components/ThemeToggle';
 export const NAV_LINKS = [
   { name: 'Home', href: '/' },
   { name: 'Pools', href: '/pools' },
+  { name: 'Stories', href: '/stories' },
   { name: 'Transactions', href: '/transactions' },
   { name: 'Dashboard', href: '/dashboard' },
   { name: 'Create Pool', href: '/pools/new' },
+  { name: 'Contact', href: '/contact' },
+  { name: 'Donations', href: '/donations' },
 ] as const;
 
 const FOCUSABLE =

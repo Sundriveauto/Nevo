@@ -12,6 +12,9 @@ export const Header = () => {
     { name: 'Browse Pools', href: '/pools' },
     { name: 'Create Pool', href: '/create-pool' },
     { name: 'Dashboard', href: '/dashboard' },
+    { name: 'Stories', href: '/stories' },
+    { name: 'Contact', href: '/contact' },
+    { name: 'Donations', href: '/donations' },
   ];
 
   return (

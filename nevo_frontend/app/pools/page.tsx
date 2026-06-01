@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/EmptyState';
 import { usePoolsStore, type Pool } from '@/src/store/poolsStore';
@@ -10,6 +10,7 @@ import {
   type PoolStatus,
   type SortOption,
 } from '@/src/store/poolsStore';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // We extract categories from MOCK_POOLS dynamically or define them statically
 const CATEGORIES = [
@@ -37,6 +38,8 @@ export default function BrowsePoolsPage() {
     toggleCategory,
     toggleStatus,
     clearFilters,
+    setPriceRange,
+    setDateRange,
     sortBy,
     setSortBy,
   } = usePoolsStore();
@@ -59,6 +62,22 @@ export default function BrowsePoolsPage() {
       key: `category-${category}`,
       label: category,
     })),
+    ...(filters.minTarget != null || filters.maxTarget != null
+      ? [
+          {
+            key: 'price',
+            label: `Target: ${filters.minTarget ?? '0'}–${filters.maxTarget ?? '∞'}`,
+          },
+        ]
+      : []),
+    ...(filters.dateFrom || filters.dateTo
+      ? [
+          {
+            key: 'date',
+            label: `Date: ${filters.dateFrom ?? 'Any'}–${filters.dateTo ?? 'Any'}`,
+          },
+        ]
+      : []),
   ];
 
   const handleClearFilters = () => {
@@ -74,6 +93,61 @@ export default function BrowsePoolsPage() {
 
     return () => clearTimeout(handler);
   }, [searchInput, setSearch]);
+
+  // URL sync: read initial params and push updates
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!searchParams) return;
+    const q = searchParams.get('q') || '';
+    const min = searchParams.get('min') || '';
+    const max = searchParams.get('max') || '';
+    const from = searchParams.get('from') || '';
+    const to = searchParams.get('to') || '';
+    if (q) setSearch(q);
+    if (min || max) setPriceRange(min ? Number(min) : null, max ? Number(max) : null);
+    if (from || to) setDateRange(from || null, to || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.search) params.set('q', filters.search);
+    if (filters.minTarget != null) params.set('min', String(filters.minTarget));
+    if (filters.maxTarget != null) params.set('max', String(filters.maxTarget));
+    if (filters.dateFrom) params.set('from', filters.dateFrom);
+    if (filters.dateTo) params.set('to', filters.dateTo);
+    router.replace(`/pools?${params.toString()}`, { scroll: false });
+  }, [filters.search, filters.minTarget, filters.maxTarget, filters.dateFrom, filters.dateTo, router]);
+
+  const allPools = usePoolsStore((s) => s.pools);
+
+  function countForCategory(cat: string) {
+    return allPools.filter((p) => {
+      const searchLower = filters.search.toLowerCase();
+      const matchSearch =
+        !filters.search ||
+        p.title.toLowerCase().includes(searchLower) ||
+        p.description.toLowerCase().includes(searchLower) ||
+        p.category.toLowerCase().includes(searchLower);
+      const matchStatus = filters.statuses.length === 0 || filters.statuses.includes(p.status);
+      const matchPriceMin = filters.minTarget == null || p.target >= (filters.minTarget ?? 0);
+      const matchPriceMax = filters.maxTarget == null || p.target <= (filters.maxTarget ?? Infinity);
+      return matchSearch && matchStatus && matchPriceMin && matchPriceMax && p.category === cat;
+    }).length;
+  }
+
+  function countForStatus(status: PoolStatus) {
+    return allPools.filter((p) => {
+      const searchLower = filters.search.toLowerCase();
+      const matchSearch = !filters.search || p.title.toLowerCase().includes(searchLower) || p.description.toLowerCase().includes(searchLower);
+      const matchCategory = filters.categories.length === 0 || filters.categories.includes(p.category);
+      const matchPriceMin = filters.minTarget == null || p.target >= (filters.minTarget ?? 0);
+      const matchPriceMax = filters.maxTarget == null || p.target <= (filters.maxTarget ?? Infinity);
+      return matchSearch && matchCategory && matchPriceMin && matchPriceMax && p.status === status;
+    }).length;
+  }
 
   const displayedPools = filteredPools();
 
@@ -127,7 +201,10 @@ export default function BrowsePoolsPage() {
                           : 'border-[var(--color-border)] bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)]'
                       }`}
                     >
-                      {status}
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{status}</span>
+                        <span className="text-[var(--color-text-muted)]">{countForStatus(status)}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -149,10 +226,41 @@ export default function BrowsePoolsPage() {
                           : 'border-[var(--color-border)] bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)]'
                       }`}
                     >
-                      {cat}
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{cat}</span>
+                        <span className="text-[var(--color-text-muted)]">{countForCategory(cat)}</span>
+                      </div>
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Target range (XLM)</h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={filters.minTarget ?? ''}
+                  onChange={(e) => setPriceRange(e.target.value ? Number(e.target.value) : null, filters.maxTarget ?? null)}
+                  className="w-24 rounded-xl border px-3 py-2 text-sm bg-[var(--color-surface)]"
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={filters.maxTarget ?? ''}
+                  onChange={(e) => setPriceRange(filters.minTarget ?? null, e.target.value ? Number(e.target.value) : null)}
+                  className="w-24 rounded-xl border px-3 py-2 text-sm bg-[var(--color-surface)]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Created date</h3>
+              <div className="flex gap-2">
+                <input type="date" value={filters.dateFrom ?? ''} onChange={(e) => setDateRange(e.target.value || null, filters.dateTo ?? null)} className="rounded-xl border px-3 py-2 text-sm bg-[var(--color-surface)]" />
+                <input type="date" value={filters.dateTo ?? ''} onChange={(e) => setDateRange(filters.dateFrom ?? null, e.target.value || null)} className="rounded-xl border px-3 py-2 text-sm bg-[var(--color-surface)]" />
               </div>
             </div>
           </div>
